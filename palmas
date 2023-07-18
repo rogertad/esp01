@@ -1,0 +1,111 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+
+const char* ssid = "chess2g";
+const char* password = "gambitodadama";
+
+//#define pinRele2 3
+#define tempoMaximoDeUmaPalma 200   //milisegundos
+#define tempoMaximoEntrePalmas 400  //milisegundos
+int pinSom = 15;
+int pinRele1 = 5;
+int contaPalmas = 0;
+long tempoEspera = 0;
+long tempoEsperaEntrePalmas = 0;
+
+void executarAcao();
+
+void setup() {
+  pinMode(pinSom, INPUT);
+  pinMode(pinRele1, OUTPUT);
+  //pinMode(pinRele2, OUTPUT);
+  Serial.begin(19200);
+
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+}
+
+void loop() {
+  //verifica o estado do sensor de som (ele fica normalmente com a porta ligada. Quando ouver uma palma, ele desliga momentaneamente a porta)
+  int sensorSom = 0;
+  sensorSom = digitalRead(pinSom);
+  //if (sensorSom == 1) {
+  //Serial.println(digitalRead(pinSom));
+
+  //digitalWrite( pinRele1, pinSom);
+
+  //}
+  //delay(55);
+
+  //se o sensor detectou palmas
+  if (sensorSom == HIGH) {
+
+    //espera um tempo para nao detectar a mesma palma mais de uma vez
+    if (tempoEspera == 0) {
+      //Serial.println("sensorSom1");
+      tempoEspera = tempoEsperaEntrePalmas = millis();
+      contaPalmas++;
+    } else if ((millis() - tempoEspera) >= tempoMaximoDeUmaPalma) {
+      tempoEspera = 0;
+      //Serial.println("sensorSom2");
+    }
+  }
+
+  if (contaPalmas > 1) {
+    Serial.println("qte de palmas: " + (String)contaPalmas);
+  }
+
+  //caso exceda o tempo maximo entre palmas, zera o contador de palmas
+  if ((contaPalmas != 0) && ((millis() - tempoEsperaEntrePalmas) > tempoMaximoEntrePalmas)) {
+    executarAcao();
+    contaPalmas = 0;
+    tempoEsperaEntrePalmas = millis();
+  }
+}
+
+int httpCode = 0;  // Declare httpCode outside the switch statement
+
+void executarAcao() {
+  Serial.println("sensorSom3");
+
+  WiFiClient client;  // Create a WiFiClient object
+
+  HTTPClient http;
+  String url = "http://192.168.0.8/";  // Replace with the URL you want to access
+
+  switch (contaPalmas) {
+    case 2:
+      digitalWrite(pinRele1, !digitalRead(pinRele1));
+
+      http.begin(client, url);  // Pass the WiFiClient object to HTTPClient::begin()
+      httpCode = http.GET();    // Now assign the value to httpCode
+
+      if (httpCode > 0) {
+        if (httpCode == HTTP_CODE_OK) {
+          Serial.println("URL accessed successfully!");
+        } else {
+          Serial.println("Failed to access URL.");
+        }
+      } else {
+        Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      }
+
+      http.end();
+      // #1
+      break;
+
+    case 3:
+      digitalWrite(pinRele1, !digitalRead(pinRele1));
+      break;
+
+    case 4:
+      //digitalWrite(pinRele2, !digitalRead(pinRele2));
+      break;
+  }
+
+}
